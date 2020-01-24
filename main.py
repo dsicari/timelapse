@@ -1,21 +1,39 @@
 import logging
-import logging.config
-#logging.config.fileConfig('logging.conf')
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-# Formatter = 2020-01-22 21:47:12.172 - __main__ - DEBUG - debug message
-formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s")
-# Log to file
-filehandler = logging.FileHandler("log/log.txt")
-filehandler.setLevel(logging.DEBUG)
-filehandler.setFormatter(formatter)
-logger.addHandler(filehandler)
-# Log to stdout too
-streamhandler = logging.StreamHandler()
-streamhandler.setLevel(logging.DEBUG)
-streamhandler.setFormatter(formatter)
-logger.addHandler(streamhandler)
-
+from time import sleep
+import sys
 from TTimelapse import Timelapse
-logger.debug("teste")
-tl = Timelapse("output", "http://raspiwebcam.local:8081/?action=snapshot")
+sys.path.append('../pythonUtils')
+import TDateUtil as dateUtl
+
+"""
+    SET LOG SETTINGS
+"""
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+fh = logging.FileHandler("log/" + dateUtl.getTimeStamp("%Y%m%d") + ".log")
+fh.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(name)s %(levelname)s %(message)s', '%m-%d-%Y %H:%M:%S')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(fh)
+logger.addHandler(ch)
+logger.debug("Logger configured")
+
+if __name__ == "__main__":
+    logger.debug("Program started")
+    tl = Timelapse("output", "http://raspiwebcam.local:8081/?action=snapshot")
+    print("Hit any key to exit")
+    while(True):
+        try:
+            sleep(1)
+        except KeyboardInterrupt:
+            tl.timerCancel()
+            print("Exiting...")
+            exit()
+        
