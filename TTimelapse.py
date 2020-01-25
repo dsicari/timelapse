@@ -9,7 +9,7 @@ import TDateUtil as dateUtl
 
 class Timelapse:   
 
-    INTERVAL_TO_CAPTURE_IMG = 2 * 60
+    INTERVAL_TO_CAPTURE_IMG = 5
     CAPTURE_IMG_RETRIES = 3
 
     STATUS_OK = 0
@@ -101,7 +101,7 @@ class Timelapse:
             for retry in range(Timelapse.CAPTURE_IMG_RETRIES):	
                 try:
                     urllib.request.urlretrieve(self.url, self.imageDirectory + "/" + dateUtl.getTimeStamp("%Y%m%d%H%M%S") + ".jpg")
-                    self.logger.debug("Image captured")
+                    self.logger.debug("Image captured, retry=" + str(retry))
                     break
                 except urllib.error.URLError as e:
                     self.logger.error("URLError=" + str(e))

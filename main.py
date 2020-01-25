@@ -22,8 +22,10 @@ fh.setFormatter(formatter)
 ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
-if(sys.argv[1] != "noconsole"):
-    logger.addHandler(ch)
+logger.addHandler(ch)
+if(len(sys.argv) > 1):
+    if(sys.argv[1] == "noconsole"):
+        logger.removeHandler(ch)
 logger.debug("Logger configured")
 
 if __name__ == "__main__":
