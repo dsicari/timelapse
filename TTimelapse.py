@@ -9,7 +9,8 @@ import TDateUtil as dateUtl
 
 class Timelapse:   
 
-    INTERVAL_TO_CAPTURE_IMG = 10 * 60
+    INTERVAL_TO_CAPTURE_IMG = 2 * 60
+    CAPTURE_IMG_RETRIES = 3
 
     STATUS_OK = 0
 
@@ -97,15 +98,18 @@ class Timelapse:
         if(self.url == None or len(self.url) == 0):
             self.logger.error("URL is not set")
         else:
-            try:
-                urllib.request.urlretrieve(self.url, self.imageDirectory + "/" + dateUtl.getTimeStamp("%Y%m%d%H%M%S") + ".jpg")
-                self.logger.debug("Image captured")
-            except urllib.error.URLError as e:
-                self.logger.error("URLError=" + str(e))
-            except urllib.error.HTTPError as e:
-                self.logger.error("HTTPError=" + str(e))
-            except urllib.error.ContentTooShortError as e:
-                self.logger.error("ContentTooShortError=" + str(e))
+            for retry in range(Timelapse.CAPTURE_IMG_RETRIES):	
+                try:
+                    urllib.request.urlretrieve(self.url, self.imageDirectory + "/" + dateUtl.getTimeStamp("%Y%m%d%H%M%S") + ".jpg")
+                    self.logger.debug("Image captured")
+                    break
+                except urllib.error.URLError as e:
+                    self.logger.error("URLError=" + str(e))
+                except urllib.error.HTTPError as e:
+                    self.logger.error("HTTPError=" + str(e))
+                except urllib.error.ContentTooShortError as e:
+                    self.logger.error("ContentTooShortError=" + str(e))
+                self.logger.warning("Capture Img retry " + str(retry+1) + "/" + str(Timelapse.CAPTURE_IMG_RETRIES))
         self.timer = threading.Timer(Timelapse.INTERVAL_TO_CAPTURE_IMG, self.captureImage)
         self.timer.start()
 

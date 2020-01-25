@@ -13,7 +13,7 @@ logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 fh = logging.FileHandler("log/" + dateUtl.getTimeStamp("%Y%m%d") + ".log")
 fh.setLevel(logging.DEBUG)
-# create console handler with a higher log level
+# create console handler
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 # create formatter and add it to the handlers
@@ -22,13 +22,14 @@ fh.setFormatter(formatter)
 ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
-logger.addHandler(ch)
+if(sys.argv[1] != "noconsole"):
+    logger.addHandler(ch)
 logger.debug("Logger configured")
 
 if __name__ == "__main__":
     logger.debug("Program started")
     tl = Timelapse("output", "http://raspiwebcam.local:8081/?action=snapshot")
-    print("Hit any key to exit")
+    print("Hit ^C to exit")
     while(True):
         try:
             sleep(1)
