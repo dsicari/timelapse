@@ -9,7 +9,7 @@ import TDateUtil as dateUtl
 
 class Timelapse:   
 
-    INTERVAL_TO_CAPTURE_IMG = 5
+    INTERVAL_TO_CAPTURE_IMG = 2*60
     CAPTURE_IMG_RETRIES = 3
 
     STATUS_OK = 0
