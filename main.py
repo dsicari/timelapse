@@ -1,4 +1,6 @@
 import logging
+import configparser
+import os
 from time import sleep
 import sys
 from TTimelapse import Timelapse
@@ -11,7 +13,7 @@ import TDateUtil as dateUtl
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
-fh = logging.FileHandler("log/" + dateUtl.getTimeStamp("%Y%m%d") + ".log")
+fh = logging.FileHandler("log/timelapse_" + dateUtl.getTimeStamp("%Y-%m") + ".log")
 fh.setLevel(logging.DEBUG)
 # create console handler
 ch = logging.StreamHandler()
@@ -28,6 +30,27 @@ if(len(sys.argv) > 1):
         logger.removeHandler(ch)
 logger.debug("Logger configured")
 
+"""
+    INI SETTINGS
+"""
+if(os.path.exists("timelapse.ini")):
+    logger.debug("timelapse.ini exists")
+else:
+    config = configparser.ConfigParser()
+    config['TIMELAPSE'] = {'time_to_timelapse': '01:00:00',
+                           'interval_to_capture_img': '120',
+                           'capture_img_retries': '3',
+                           'ffmpeg_process_timeout': '600'}
+    # if using twitter to post timelapse, set to True and give the credentials                           
+    config['TWITTER'] = {'enabled': 'False',
+                         'consumer_key': '',
+                         'consumer_secret': '',
+                         'access_token': '',
+                         'access_token_secret': ''}
+    with open('timelapse.ini', 'w') as configfile:
+        config.write(configfile)
+    logger.debug("timelapse.ini not found, created with default values")
+
 if __name__ == "__main__":
     logger.debug("Program started")
     tl = Timelapse("output", "http://raspiwebcam.local:8081/?action=snapshot")
@@ -35,8 +58,10 @@ if __name__ == "__main__":
     while(True):
         try:
             sleep(1)
+            tl.runPendingSchedules()
         except KeyboardInterrupt:
-            tl.timerCancel()
-            print("Exiting...")
-            exit()
-        
+            print("Timelapse sttoped")
+            break
+    del tl
+    print("Exiting...")
+    exit()   

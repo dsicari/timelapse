@@ -1,16 +1,32 @@
 import logging
+import configparser # for .ini file
 import os
 import sys
+import subprocess # unix commands with arguments
+import shutil # remove directory tree
+import glob # wildcards
 import threading
+import schedule #REF: https://pypi.org/project/schedule/
 import urllib.request
-
+import subprocess
 sys.path.append('../pythonUtils')
 import TDateUtil as dateUtl
+from twython import Twython
 
 class Timelapse:   
 
-    INTERVAL_TO_CAPTURE_IMG = 2*60
+    # TIMELAPSE constants
+    TIME_TO_TIMELAPSE = "01:00:00"
+    INTERVAL_TO_CAPTURE_IMG = 120   # time in seconds
     CAPTURE_IMG_RETRIES = 3
+    FFMPEG_PROCESS_TIMEOUT = 600    # time in seconds
+
+    # TWITTER constants
+    TWITTER_ENABLED = False
+    TWITTER_CONSUMER_KEY = ""
+    TWITTER_CONSUMER_SECRET = ""
+    TWITTER_ACCESS_TOKEN = ""
+    TWITTER_ACCESS_TOKEN_SECRET = ""
 
     STATUS_OK = 0
 
@@ -31,10 +47,36 @@ class Timelapse:
  
     def __init__(self, directory, url):   
         self.logger = logging.getLogger(__name__)  
-        self.logger.debug("Init, directory=" + directory + ", url=" + url)
+        # Config constants by ini file
+        self.config = configparser.ConfigParser()
+        if(os.path.exists("timelapse.ini") == False):
+            logger.warning("timelapse.ini not found, using default values")
+        else:
+            self.config.read("timelapse.ini")
+            Timelapse.TIME_TO_TIMELAPSE = str(self.config["TIMELAPSE"]["time_to_timelapse"])
+            Timelapse.INTERVAL_TO_CAPTURE_IMG = int(self.config["TIMELAPSE"]["interval_to_capture_img"])
+            Timelapse.CAPTURE_IMG_RETRIES = int(self.config["TIMELAPSE"]["capture_img_retries"])
+            Timelapse.FFMPEG_PROCESS_TIMEOUT = int(self.config["TIMELAPSE"]["ffmpeg_process_timeout"])
+            Timelapse.TWITTER_ENABLED = self.config["TWITTER"].getboolean("enabled")
+            if(Timelapse.TWITTER_ENABLED == True):
+                Timelapse.TWITTER_CONSUMER_KEY = str(self.config["TWITTER"]["consumer_key"])
+                Timelapse.TWITTER_CONSUMER_SECRET = str(self.config["TWITTER"]["consumer_secret"])
+                Timelapse.TWITTER_ACCESS_TOKEN = str(self.config["TWITTER"]["access_token"])
+                Timelapse.TWITTER_ACCESS_TOKEN_SECRET = str(self.config["TWITTER"]["access_token_secret"])
+            else:
+                self.logger.debug("TWITTER_ENABLED=" + str(Timelapse.TWITTER_ENABLED))
+
+        self.logger.debug("Init, directory=" + directory + ", url=" + url)        
         self.directory = directory     
         self.url = url
+        self.schedule=schedule
+        # Set timer to capture the images
         self.timer = threading.Timer(Timelapse.INTERVAL_TO_CAPTURE_IMG, self.captureImage) 
+        # Set hour for transform images into timelapse and upload
+        self.schedule.every().day.at(Timelapse.TIME_TO_TIMELAPSE).do(self.doTimelapse)
+        # to query ffmpegProcess on doTimelapse
+        self.ffmpegProcessStarted=False
+        self.ffmpegProcess=0
 
         self.directoryInfo = self.isDirectory(self.directory)
         if(self.directoryInfo == Timelapse.IS_DIRECTORY):
@@ -58,6 +100,7 @@ class Timelapse:
             
     def __del__(self):
         self.timer.cancel()
+        schedule.clear()
     
     def timerCancel(self):
         self.timer.cancel()
@@ -113,3 +156,83 @@ class Timelapse:
         self.timer = threading.Timer(Timelapse.INTERVAL_TO_CAPTURE_IMG, self.captureImage)
         self.timer.start()
 
+    def doTimelapse(self):        
+        # Remove if already have a temporary folder output/timelapse_*
+        fileList = glob.glob(self.directory + "/timelapse_*")
+        for filePath in fileList:
+            shutil.rmtree(filePath)
+
+        # Copy the last folder to a temporary location: output/timelapse_{YESTERDAY_TIMESTAMP}
+        subprocess.call(["cp", "-r", "output/" + dateUtl.getYesterdayTimeStamp(), "output/timelapse_" + dateUtl.getYesterdayTimeStamp()])
+
+        # Rename all files to a sequence img_{0000-9999}.jpg
+        i=0
+        for filename in os.listdir("output/timelapse_" + dateUtl.getYesterdayTimeStamp()):
+            src=self.directory+"/timelapse_" + dateUtl.getYesterdayTimeStamp() + "/" + filename
+            dst=self.directory+"/timelapse_{}/img_{:04d}.jpg".format(dateUtl.getYesterdayTimeStamp(), i)   
+            os.rename(src, dst)  
+            i+=1
+        self.logger.debug("Renamed %s files in %s", str(i), self.directory+"/timelapse_" + dateUtl.getYesterdayTimeStamp())
+
+        # Do timelapse with ffmpeg. These configs are specials to fit the video requirement for twitter
+        # ffmpeg -f image2 -framerate 30 -i img_%04d.jpg -vcodec libx264 -pix_fmt yuv420p -strict -2 -acodec aac -q:v 1 test.mp4
+        #   -f image2, tells ffmpeg that is coming a sequence of image for input
+        #   -framerate 30, video with 30 images/second, so 1s of video = 1h of the day
+        #   -i img_%04d.jpg, the image sequence pattern
+        #   -vcodec libx264, codec mp4
+        #   -pix_fmt yuv420p, pixel format
+        #   -strict -2
+        #   -acodec aac, audio codec, enve video has no sound
+        #   -q:v 1, video quality, where 1 is higher and 31 is the lower
+        #   -test.avi, output file
+        self.ffmpegProcess = subprocess.Popen([ "ffmpeg", "-f", "image2", 
+                                                "-framerate", "30", 
+                                                "-i", self.directory+"/timelapse_"+dateUtl.getYesterdayTimeStamp()+"/img_%04d.jpg", 
+                                                "-vcodec", "libx264",
+                                                "-pix_fmt", "yuv420p",
+                                                "-strict", "-2",
+                                                "-acodec", "aac",
+                                                "-q:v", "1",
+                                                self.directory+"/timelapse_"+dateUtl.getYesterdayTimeStamp()+"/"+dateUtl.getYesterdayTimeStamp()+".mp4"]
+                                                ,shell=False
+                                                ,stderr=subprocess.DEVNULL # for no stdout on console
+                                                ,stdout=subprocess.DEVNULL)
+                                                #timeout=Timelapse.FFMPEG_PROCESS_TIMEOUT)
+        self.logger.debug("ffmpegProcess started")
+        
+        # Need to free the program, to keep capturing images
+        # So we need to know if ffmpegProcess is over to manipulate the generated video
+        # Lets do it every 30s
+        self.schedule.every(30).seconds.do(self.ffmpegCheckProcess).tag("ffmpegProcess")
+
+    def ffmpegCheckProcess(self):
+        poll = self.ffmpegProcess.poll()
+        if poll == None:
+            self.logger.debug("ffmpegProcess is alive")
+        else:
+            self.logger.debug("ret ffmpegProcess=%s", str(poll))
+            self.schedule.clear("ffmpegProcess")
+            if(poll == 0):
+                videoPath=self.directory+"/timelapse_"+dateUtl.getYesterdayTimeStamp()+"/"+dateUtl.getYesterdayTimeStamp()+".mp4"
+                if(Timelapse.TWITTER_ENABLED == True):                
+                    self.logger.debug("ffmpeg process ended, uploading it to twitter, videoPath=%s", videoPath)                
+                    self.uploadVideoTwitter(videoPath)
+                else:
+                    self.logger.debug("ffmpeg process ended")
+
+    def runPendingSchedules(self):
+        self.schedule.run_pending()
+    
+    def uploadVideoTwitter(self, videoPath):
+        logging.getLogger("twython").setLevel(logging.ERROR)                        
+        logging.getLogger("requests_oauthlib").setLevel(logging.ERROR)
+        logging.getLogger("oauthlib").setLevel(logging.ERROR)
+
+        # authentication of consumer key and secret 
+        twitter = Twython(Timelapse.TWITTER_CONSUMER_KEY, Timelapse.TWITTER_CONSUMER_SECRET,
+                          Timelapse.TWITTER_ACCESS_TOKEN, Timelapse.TWITTER_ACCESS_TOKEN_SECRET)      
+        
+        video = open(videoPath, 'rb')
+        response = twitter.upload_video(media=video, media_type='video/mp4')
+        twitter.update_status(status="A beauty timelapse from Araras, Sao Paulo, Brazil. It's from " + dateUtl.getYesterdayTimeStamp("%d/%m/%Y") + "."
+                              ,media_ids=[response['media_id']])
