@@ -13,6 +13,8 @@ import TDateUtil as dateUtl
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
+if(os.path.exists("log") == False):
+    os.mkdir("log")
 fh = logging.FileHandler("log/timelapse_" + dateUtl.getTimeStamp("%Y-%m") + ".log")
 fh.setLevel(logging.DEBUG)
 # create console handler
@@ -37,10 +39,13 @@ if(os.path.exists("timelapse.ini")):
     logger.debug("timelapse.ini exists")
 else:
     config = configparser.ConfigParser()
-    config['TIMELAPSE'] = {'time_to_timelapse': '01:00:00',
+    config['TIMELAPSE'] = {'enabled': 'False',
+                           'add_date_time': 'True',
+                           'time_to_timelapse': '01:00:00',
                            'interval_to_capture_img': '120',
                            'capture_img_retries': '3',
-                           'ffmpeg_process_timeout': '600'}
+                           'ffmpeg_process_timeout': '600',
+                           'pending': ''}
     # if using twitter to post timelapse, set to True and give the credentials                           
     config['TWITTER'] = {'enabled': 'False',
                          'consumer_key': '',
@@ -53,15 +58,17 @@ else:
 
 if __name__ == "__main__":
     logger.debug("Program started")
-    tl = Timelapse("output", "http://raspiwebcam.local:8081/?action=snapshot")
-    print("Hit ^C to exit")
+    tl = Timelapse("output", "http://localhost:8080/?action=snapshot")
+    #tl.disableTimelapse()
+    #tl.doTimelapse("20200125")
+    print("Hit ^C to exit\n")
     while(True):
         try:
             sleep(1)
             tl.runPendingSchedules()
         except KeyboardInterrupt:
-            print("Timelapse sttoped")
+            print("Timelapse sttoped\n")
             break
     del tl
-    print("Exiting...")
+    print("Exiting...\n")
     exit()   
