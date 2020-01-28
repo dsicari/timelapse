@@ -58,9 +58,9 @@ else:
 
 if __name__ == "__main__":
     logger.debug("Program started")
-    tl = Timelapse("output", "http://localhost:8080/?action=snapshot")
-    #tl.disableTimelapse()
-    #tl.doTimelapse("20200125")
+    tl = Timelapse("output", "http://raspiwebcam.local:8080/?action=snapshot")
+    tl.disableTimelapse()
+    tl.doTimelapse("20200126")
     print("Hit ^C to exit\n")
     while(True):
         try:

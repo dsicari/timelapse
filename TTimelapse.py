@@ -59,6 +59,7 @@ class Timelapse:
             logger.warning("timelapse.ini not found, using default values")
         else:
             self.config.read("timelapse.ini")
+            # Timelapse section
             Timelapse.ENABLED = self.config["TIMELAPSE"].getboolean("enabled")
             Timelapse.ADD_DATE_TIME = self.config["TIMELAPSE"].getboolean("add_date_time")
             Timelapse.TIME_TO_TIMELAPSE = str(self.config["TIMELAPSE"]["time_to_timelapse"])
@@ -66,14 +67,16 @@ class Timelapse:
             Timelapse.CAPTURE_IMG_RETRIES = int(self.config["TIMELAPSE"]["capture_img_retries"])
             Timelapse.FFMPEG_PROCESS_TIMEOUT = int(self.config["TIMELAPSE"]["ffmpeg_process_timeout"])
             Timelapse.PENDING = str(self.config["TIMELAPSE"]["pending"])
+            # Twitter section
             Timelapse.TWITTER_ENABLED = self.config["TWITTER"].getboolean("enabled")
-            if(Timelapse.TWITTER_ENABLED == True):
-                Timelapse.TWITTER_CONSUMER_KEY = str(self.config["TWITTER"]["consumer_key"])
-                Timelapse.TWITTER_CONSUMER_SECRET = str(self.config["TWITTER"]["consumer_secret"])
-                Timelapse.TWITTER_ACCESS_TOKEN = str(self.config["TWITTER"]["access_token"])
-                Timelapse.TWITTER_ACCESS_TOKEN_SECRET = str(self.config["TWITTER"]["access_token_secret"])
-            else:
-                self.logger.debug("TWITTER_ENABLED=" + str(Timelapse.TWITTER_ENABLED))
+            Timelapse.TWITTER_CONSUMER_KEY = str(self.config["TWITTER"]["consumer_key"])
+            Timelapse.TWITTER_CONSUMER_SECRET = str(self.config["TWITTER"]["consumer_secret"])
+            Timelapse.TWITTER_ACCESS_TOKEN = str(self.config["TWITTER"]["access_token"])
+            Timelapse.TWITTER_ACCESS_TOKEN_SECRET = str(self.config["TWITTER"]["access_token_secret"])        
+        self.logger.debug("TIMELAPSE ENABLED=%s, ADD_DATE_TIME=%s, TIME_TO_TIMELAPSE=%s, INTERVAL_TO_CAPTURE_IMG=%s, CAPTURE_IMG_RETRIES=%s, FFMPEG_PROCESS_TIMEOUT=%s, PENDING=%s",
+                          str(Timelapse.ENABLED), str(Timelapse.ADD_DATE_TIME), Timelapse.TIME_TO_TIMELAPSE, str(Timelapse.INTERVAL_TO_CAPTURE_IMG), str(Timelapse.CAPTURE_IMG_RETRIES), str(Timelapse.FFMPEG_PROCESS_TIMEOUT), Timelapse.PENDING)
+        self.logger.debug("TWITTER ENABLED=%s, CONSUMER_KEY=%s, CONSUMER_SECRET=%s, ACCESS_TOKEN=%s, ACCESS_TOKEN_SECRET=%s",
+                          str(Timelapse.TWITTER_ENABLED), Timelapse.TWITTER_CONSUMER_KEY, Timelapse.TWITTER_CONSUMER_SECRET, Timelapse.TWITTER_ACCESS_TOKEN, Timelapse.TWITTER_ACCESS_TOKEN_SECRET)
 
         self.logger.debug("Init, directory=" + directory + ", url=" + url)        
         self.directory = directory     
@@ -188,8 +191,8 @@ class Timelapse:
         return Timelapse.ENABLED
 
     def doTimelapse(self, folder2timelapse=None):
-        if(Timelapse.ENABLED == True and folder2timelapse==None):
-            self.logger.debug("Timelapse job is not enabled. To do a timelapse, give the folder name as argument in doTimelapse()")
+        if(Timelapse.ENABLED == False and folder2timelapse==None):
+            self.logger.debug("Timelapse job is not enabled and no folder was given")
             return
         
         # No folder as argument was given, so try the yestareday folder
@@ -199,7 +202,7 @@ class Timelapse:
 
         # The folder exists? If not, return...
         if(os.path.exists(self.directory + "/" + self.folder2timelapse) == False):
-            self.logger.debug("No folder with images from yesterday to timelapse")
+            self.logger.debug("No folder with images to timelapse, directory=" + self.directory + "/" + self.folder2timelapse)
             return 
 
         # Remove if already have a temporary folder output/timelapse_*
